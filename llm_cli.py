@@ -8,6 +8,7 @@ import os
 import sys
 from typing import Any
 
+from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_openai import ChatOpenAI
@@ -15,11 +16,8 @@ from langgraph.prebuilt import create_react_agent
 
 from tools import ALL_TOOLS
 
-
-DEFAULT_BASE_URL = "https://api.deepseek.com/v1"
-DEFAULT_MODEL = "deepseek-v4-flash"
-DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant with access to tools. Use them when needed."
-
+# 加载 .env 文件中的环境变量
+load_dotenv()
 
 class StreamingHandler(BaseCallbackHandler):
     """流式输出回调，逐 token 打印 LLM 生成内容。"""
@@ -162,11 +160,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("prompt", nargs="*", help="提示文本，省略则进入交互模式。")
     parser.add_argument("--api-key", default=env("OPENAI_API_KEY"))
     parser.add_argument(
-        "--base-url", default=env("OPENAI_BASE_URL", DEFAULT_BASE_URL)
+        "--base-url", default=env("OPENAI_BASE_URL", "https://api.deepseek.com/v1")
     )
-    parser.add_argument("--model", default=env("OPENAI_MODEL", DEFAULT_MODEL))
+    parser.add_argument("--model", default=env("OPENAI_MODEL", "deepseek-v4-flash"))
     parser.add_argument(
-        "--system", default=env("LLM_SYSTEM_PROMPT", DEFAULT_SYSTEM_PROMPT)
+        "--system", default=env("LLM_SYSTEM_PROMPT", "You are a helpful assistant with access to tools. Use them when needed.")
     )
     parser.add_argument(
         "--temperature", type=float, default=float(env("LLM_TEMPERATURE", "0.7"))
