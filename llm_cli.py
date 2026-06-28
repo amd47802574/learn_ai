@@ -15,6 +15,16 @@ from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 
 from tools import ALL_TOOLS
+from logger import (
+    llm_tag,
+    tool_tag,
+    print_section,
+    print_success,
+    print_info,
+    print_divider,
+    colored,
+    Color
+)
 
 # 加载 .env 文件中的环境变量
 load_dotenv()
@@ -29,11 +39,11 @@ class StreamingHandler(BaseCallbackHandler):
         self, serialized: dict[str, Any], input_str: str, **kwargs: Any
     ) -> None:
         tool_name = serialized.get("name", "unknown")
-        print(f"\n[调用工具: {tool_name}({input_str})]", file=sys.stderr)
+        print(colored(f"\n{tool_tag()} 调用 {tool_name}({input_str})", Color.YELLOW), file=sys.stderr)
 
     def on_tool_end(self, output: str, **kwargs: Any) -> None:
-        preview = output[:200] + "..." if len(output) > 200 else output
-        print(f"[工具结果: {preview}]", file=sys.stderr)
+        preview = output[:150] + "..." if len(output) > 150 else output
+        print(colored(f"{tool_tag()} 结果: {preview}", Color.GREEN), file=sys.stderr)
 
 
 def env(name: str, default: str | None = None) -> str | None:
@@ -118,7 +128,11 @@ def repl(agent: Any, system_prompt: str) -> None:
     """
     messages: list = []
 
-    print("LLM CLI (LangChain) is ready. Type /exit to quit, /clear to reset context.")
+    print()
+    print(colored("╔" + "═" * 58 + "╗", Color.CYAN))
+    print(colored("║" + " " * 12 + "🤖 LLM CLI (LangChain) 已就绪" + " " * 17 + "║", Color.CYAN))
+    print(colored("╚" + "═" * 58 + "╝", Color.CYAN))
+    print(colored("  输入 /exit 或 /quit 退出，/clear 清除上下文", Color.DIM))
 
     while True:
         try:
