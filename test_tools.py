@@ -11,7 +11,8 @@ def test_tools_import():
         from tools import ALL_TOOLS, read_file, list_directory, get_current_time, calculate, execute_command
         print(f"✓ 成功导入 {len(ALL_TOOLS)} 个工具")
         for tool in ALL_TOOLS:
-            print(f"  - {tool.name}: {tool.description[:50]}...")
+            desc = tool.description.split('\n')[0]
+            print(f"  - {tool.name}: {desc}")
         return True
     except ImportError as e:
         print(f"✗ 导入失败: {e}")

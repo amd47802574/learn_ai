@@ -146,7 +146,7 @@ def repl(agent: Any, system_prompt: str) -> None:
             reply = extract_reply(result)
             # 非流式模式下手动打印回复（流式模式已通过回调打印）
             if reply:
-                print()  # 换行
+                print(reply)  # 换行
         except Exception as error:
             messages.pop()  # 移除失败的用户消息
             print(f"\nError: {error}", file=sys.stderr)
