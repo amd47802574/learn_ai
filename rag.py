@@ -23,8 +23,22 @@ from langchain_community.document_loaders import (
 )
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
-from langchain_openai import OpenAIEmbeddings
 from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
+from openai import OpenAI
+
+from logger import (
+    rag_tag,
+    print_info,
+    print_success,
+    print_warning,
+    print_error,
+    print_item,
+    print_divider,
+    colored,
+    Color,
+    Icon
+)
 
 # ---------- 常量 ----------
 # 默认文献目录（项目根目录下的 medical_docs/）
@@ -39,7 +53,41 @@ CHUNK_OVERLAP = 80
 _vector_store_cache: Optional[Chroma] = None
 
 
-def _get_embedding_model() -> OpenAIEmbeddings:
+class DashScopeEmbeddings(Embeddings):
+    """自定义 DashScope Embedding 实现，兼容 OpenAI API 格式。"""
+
+    # DashScope 批量请求最大 batch size
+    MAX_BATCH_SIZE = 10
+
+    def __init__(self, api_key: str, base_url: str, model: str):
+        self.client = OpenAI(api_key=api_key, base_url=base_url)
+        self.model = model
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        """批量获取文档的 embedding 向量。"""
+        all_embeddings = []
+        # 按 batch size 分批发送
+        for i in range(0, len(texts), self.MAX_BATCH_SIZE):
+            batch = texts[i : i + self.MAX_BATCH_SIZE]
+            response = self.client.embeddings.create(
+                model=self.model,
+                input=batch,
+                encoding_format="float",
+            )
+            all_embeddings.extend([data.embedding for data in response.data])
+        return all_embeddings
+
+    def embed_query(self, text: str) -> list[float]:
+        """获取单个查询的 embedding 向量。"""
+        response = self.client.embeddings.create(
+            model=self.model,
+            input=text,
+            encoding_format="float",
+        )
+        return response.data[0].embedding
+
+
+def _get_embedding_model() -> Embeddings:
     """获取 Embedding 模型实例。
 
     优先读取以下环境变量（支持智谱/通义/硅基等国内 API）:
@@ -50,7 +98,7 @@ def _get_embedding_model() -> OpenAIEmbeddings:
     如果未设置 EMBEDDING_* 变量，则回退到 OPENAI_* 变量。
 
     Returns:
-        OpenAIEmbeddings 实例。
+        Embeddings 实例。
 
     Raises:
         ValueError: 缺少 API Key 配置时抛出。
@@ -67,9 +115,11 @@ def _get_embedding_model() -> OpenAIEmbeddings:
             "或 OPENAI_API_KEY 环境变量。"
         )
 
-    print(f"[RAG] Embedding 配置: model={model}, base_url={base_url}")
+    print(f"{rag_tag()} Embedding 配置")
+    print_item("Model", model)
+    print_item("Base URL", base_url)
 
-    return OpenAIEmbeddings(
+    return DashScopeEmbeddings(
         api_key=api_key,
         base_url=base_url,
         model=model,
@@ -148,6 +198,33 @@ def split_documents(
     return splitter.split_documents(documents)
 
 
+def clear_vector_store(persist_dir: str = DEFAULT_PERSIST_DIR) -> bool:
+    """清空（删除）向量数据库。
+
+    Args:
+        persist_dir: Chroma 持久化目录。
+
+    Returns:
+        是否成功删除。
+    """
+    global _vector_store_cache
+    import shutil
+
+    if os.path.exists(persist_dir):
+        try:
+            shutil.rmtree(persist_dir)
+            print_success(f"{rag_tag()} 向量数据库目录已删除")
+            _vector_store_cache = None
+            return True
+        except Exception as e:
+            print_error(f"{rag_tag()} 删除向量数据库失败: {e}")
+            return False
+    else:
+        print_info(f"{rag_tag()} 向量数据库目录不存在，无需清理")
+        _vector_store_cache = None
+        return True
+
+
 def build_vector_store(
     docs_dir: str = DEFAULT_DOCS_DIR,
     persist_dir: str = DEFAULT_PERSIST_DIR,
@@ -183,21 +260,26 @@ def build_vector_store(
             )
             count = db._collection.count()
             if count > 0:
-                print(f"[RAG] 已加载向量数据库，共 {count} 个文档块")
+                print_success(f"{rag_tag()} 已加载向量数据库")
+                print_item("文档块数量", count)
                 _vector_store_cache = db
                 return db
         except Exception as e:
-            print(f"[RAG] 加载已有数据库失败: {e}，将重新构建...")
+            print_warning(f"{rag_tag()} 加载已有数据库失败: {e}，将重新构建...")
 
     # 重新构建
-    print(f"[RAG] 从 {docs_dir} 加载文献...")
+    print_info(f"{rag_tag()} 开始构建向量数据库")
+    print_item("文档目录", docs_dir)
+    
     documents = load_documents(docs_dir)
-    print(f"[RAG] 共加载 {len(documents)} 个文档")
+    print_success(f"{rag_tag()} 文档加载完成")
+    print_item("文档数量", len(documents))
 
     chunks = split_documents(documents)
-    print(f"[RAG] 文档分块完成，共 {len(chunks)} 个块")
+    print_success(f"{rag_tag()} 文档分块完成")
+    print_item("块数量", len(chunks))
 
-    print("[RAG] 正在构建向量索引（调用 Embedding API）...")
+    print_info(f"{rag_tag()} 正在构建向量索引 (调用 Embedding API)...")
     try:
         db = Chroma.from_documents(
             documents=chunks,
@@ -213,7 +295,8 @@ def build_vector_store(
             f"  EMBEDDING_MODEL={os.getenv('EMBEDDING_MODEL', '(未设置)')}"
         ) from e
 
-    print(f"[RAG] 向量数据库构建完成，已持久化至 {persist_dir}")
+    print_success(f"{rag_tag()} 向量数据库构建完成")
+    print_item("持久化目录", persist_dir)
     _vector_store_cache = db
     return db
 
@@ -266,11 +349,12 @@ def format_search_results(results: list[dict]) -> str:
     for i, r in enumerate(results, 1):
         source_name = os.path.basename(r["source"])
         parts.append(
-            f"【结果 {i}】相关度: {r['score']}\n"
-            f"来源: {source_name}\n"
-            f"内容: {r['content']}\n"
+            f"\n{Icon.STAR} 结果 {i}\n"
+            f"  相关度: {colored(str(r['score']), Color.CYAN)}\n"
+            f"  来源: {colored(source_name, Color.MAGENTA)}\n"
+            f"  内容: {r['content']}"
         )
-    return "\n".join(parts)
+    return "".join(parts)
 
 
 # ---------- CLI 入口：单独运行时可用于构建索引 ----------
@@ -279,15 +363,19 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="医学文献 RAG - 索引构建与检索")
     parser.add_argument("--build", action="store_true", help="构建/重建向量索引")
+    parser.add_argument("--clear", action="store_true", help="清空向量索引")
     parser.add_argument("--query", type=str, help="检索查询")
     parser.add_argument("--docs-dir", default=DEFAULT_DOCS_DIR, help="文献目录")
+    parser.add_argument("--persist-dir", default=DEFAULT_PERSIST_DIR, help="Chroma 持久化目录")
     parser.add_argument("--top-k", type=int, default=5, help="返回结果数")
     args = parser.parse_args()
 
-    if args.build:
-        build_vector_store(docs_dir=args.docs_dir, force_rebuild=True)
+    if args.clear:
+        clear_vector_store(persist_dir=args.persist_dir)
+    elif args.build:
+        build_vector_store(docs_dir=args.docs_dir, persist_dir=args.persist_dir, force_rebuild=True)
     elif args.query:
-        results = search(args.query, top_k=args.top_k, docs_dir=args.docs_dir)
+        results = search(args.query, top_k=args.top_k, docs_dir=args.docs_dir, persist_dir=args.persist_dir)
         print(format_search_results(results))
     else:
         parser.print_help()
