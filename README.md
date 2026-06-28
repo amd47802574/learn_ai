@@ -10,13 +10,47 @@
 
 ## 安装
 
+1. 创建虚拟环境：
+
+```powershell
+python -m venv .venv
+```
+
+2. 激活虚拟环境：
+
+PowerShell：
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+CMD：
+
+```cmd
+.venv\Scripts\activate.bat
+```
+
+3. 安装依赖：
+
 ```powershell
 pip install -r requirements.txt
 ```
 
 ## 设置
 
-PowerShell：
+复制 `.env.example` 为 `.env` 文件：
+
+```powershell
+cp .env.example .env
+```
+
+然后编辑 `.env` 文件，填入你的 API 密钥：
+
+```
+OPENAI_API_KEY=your_api_key_here
+```
+
+也可通过环境变量临时设置（PowerShell）：
 
 ```powershell
 $env:OPENAI_API_KEY="your_api_key"
@@ -60,13 +94,13 @@ python .\llm_cli.py --no-tools "用三句话解释什么是大模型"
 
 Agent 可自动调用以下工具：
 
-| 工具 | 说明 |
-|------|------|
-| `read_file` | 读取文件内容 |
-| `list_directory` | 列出目录内容 |
-| `execute_command` | 执行系统命令 |
-| `get_current_time` | 获取当前时间 |
-| `calculate` | 计算数学表达式 |
+| 工具               | 说明           |
+| ------------------ | -------------- |
+| `read_file`        | 读取文件内容   |
+| `list_directory`   | 列出目录内容   |
+| `execute_command`  | 执行系统命令   |
+| `get_current_time` | 获取当前时间   |
+| `calculate`        | 计算数学表达式 |
 
 工具定义在 `tools.py` 中，使用 LangChain 的 `@tool` 装饰器。
 
@@ -78,6 +112,8 @@ learn_ai/
 ├── tools.py            # 工具定义（@tool 装饰器）
 ├── test_tools.py       # 测试脚本
 ├── requirements.txt    # Python 依赖
+├── .env.example        # 环境变量示例文件
+├── .gitignore          # Git 忽略规则
 └── README.md
 ```
 
