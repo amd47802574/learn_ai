@@ -1,12 +1,14 @@
 # CLI LLM Demo (LangChain)
 
-一个基于 **LangChain** 的 Python CLI 工具，用于调用 OpenAI 兼容的聊天补全 API，支持 Agent 工具调用。
+一个基于 **LangChain** 的 Python CLI 工具，用于调用 OpenAI 兼容的聊天补全 API，支持 Agent 工具调用与 RAG 医学文献检索。
 
 ## 技术栈
 
 - **LangChain** — LLM 应用框架
 - **LangGraph** — ReAct Agent 构建
 - **langchain-openai** — OpenAI 兼容 API 接入（DeepSeek 等）
+- **Chroma** — 向量数据库（文献检索）
+- **pypdf / unstructured** — 多格式文档加载（PDF / Markdown / TXT）
 
 ## 安装
 
@@ -65,6 +67,36 @@ $env:OPENAI_MODEL="gpt-4.1-mini"
 
 默认使用 DeepSeek API（`https://api.deepseek.com/v1`，模型 `deepseek-v4-flash`）。
 
+## RAG 医学文献检索
+
+将医学文献放入 `medical_docs/` 目录（支持 `.txt`、`.md`、`.pdf`），即可构建向量索引并进行检索。
+
+### 环境变量
+
+RAG 模块使用独立的 Embedding 服务配置（优先读取 `EMBEDDING_*`，回退到 `OPENAI_*`）：
+
+```
+EMBEDDING_API_KEY=your_embedding_api_key
+EMBEDDING_BASE_URL=https://open.bigmodel.cn/api/paas/v4/
+EMBEDDING_MODEL=embedding-3
+```
+
+默认使用智谱 Embedding API。
+
+### 构建索引
+
+```powershell
+python .\rag.py --build
+```
+
+向量数据库持久化在 `chroma_db/` 目录，后续运行会自动加载已有索引。
+
+### 检索
+
+```powershell
+python .\rag.py --query "高血压的用药建议" --top-k 3
+```
+
 ## 运行
 
 单次提问（带工具支持）：
@@ -110,10 +142,12 @@ Agent 可自动调用以下工具：
 learn_ai/
 ├── llm_cli.py          # 主程序：LangChain Agent + CLI
 ├── tools.py            # 工具定义（@tool 装饰器）
+├── rag.py              # RAG 模块（文献索引与检索）
 ├── test_tools.py       # 测试脚本
 ├── requirements.txt    # Python 依赖
 ├── .env.example        # 环境变量示例文件
-├── .gitignore          # Git 忽略规则
+├── medical_docs/       # 医学文献目录（.txt/.md/.pdf）
+├── chroma_db/          # Chroma 向量数据库（自动生成）
 └── README.md
 ```
 
@@ -137,9 +171,18 @@ python .\llm_cli.py [prompt] [options]
 
 ## 架构说明
 
-本项目使用 LangChain + LangGraph 的 ReAct Agent 架构：
+本项目使用 LangChain + LangGraph 的 ReAct Agent 架构，并集成 RAG 医学文献检索：
+
+### Agent 架构
 
 1. **ChatOpenAI** — 通过 OpenAI 兼容接口调用 DeepSeek 等 LLM
 2. **@tool 装饰器** — 声明式工具定义，自动生成 JSON Schema
 3. **create_react_agent** — LangGraph 预构建的 ReAct Agent，自动处理工具调用循环
 4. **StreamingHandler** — 回调处理器，实现流式输出和工具调用日志
+
+### RAG 架构
+
+1. **DocumentLoader** — 从 `medical_docs/` 加载 `.txt`/`.md`/`.pdf` 文献
+2. **RecursiveCharacterTextSplitter** — 按中文字符分块
+3. **Chroma** — 向量数据库，使用智谱 Embedding API 构建索引
+4. **similarity_search** — 基于语义相似度检索相关文献片段
