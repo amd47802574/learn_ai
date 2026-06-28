@@ -13,15 +13,22 @@ from datetime import datetime
 
 from langchain_core.tools import tool
 
-from rag import search as rag_search, format_search_results, build_vector_store
+from rag import search as rag_search, format_search_results, build_vector_store, clear_vector_store
+from logger import (
+    tool_tag,
+    print_info,
+    print_success,
+    print_error,
+    print_item
+)
 
 
 @tool
 def read_file(path: str) -> str:
-    """Read file content at the given path.
+    """读取指定路径的文件内容。
 
-    Args:
-        path: File path to read.
+    参数:
+        path: 要读取的文件路径。
     """
     if not os.path.exists(path):
         return f"Error: file not found - {path}"
@@ -34,10 +41,10 @@ def read_file(path: str) -> str:
 
 @tool
 def list_directory(path: str = ".") -> str:
-    """List contents of a directory.
+    """列出目录内容。
 
-    Args:
-        path: Directory path, defaults to current directory.
+    参数:
+        path: 目录路径，默认为当前目录。
     """
     if not os.path.exists(path):
         return f"Error: directory not found - {path}"
@@ -58,10 +65,10 @@ def list_directory(path: str = ".") -> str:
 
 @tool
 def execute_command(command: str) -> str:
-    """Execute a system command and return output.
+    """执行系统命令并返回输出。
 
-    Args:
-        command: Command to execute.
+    参数:
+        command: 要执行的命令。
     """
     try:
         result = subprocess.run(
@@ -83,16 +90,16 @@ def execute_command(command: str) -> str:
 
 @tool
 def get_current_time() -> str:
-    """Get current date and time."""
+    """获取当前日期和时间。"""
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 @tool
 def calculate(expression: str) -> str:
-    """Evaluate a math expression (basic arithmetic only: +-*/).
+    """计算数学表达式（仅限基础算术：+-*/）。
 
-    Args:
-        expression: Math expression to evaluate.
+    参数:
+        expression: 要计算的数学表达式。
     """
     try:
         allowed_chars = set("0123456789+-*/.() ")
@@ -151,6 +158,22 @@ def medical_index_rebuild(docs_dir: str = "") -> str:
         return f"Error: index rebuild failed - {e}"
 
 
+@tool
+def medical_index_clear() -> str:
+    """清空医学文献向量索引。
+
+    调用此工具将彻底删除已有的向量数据库内容。
+    注意：操作不可逆。
+    """
+    try:
+        if clear_vector_store():
+            return "Vector store cleared successfully!"
+        else:
+            return "Failed to clear vector store."
+    except Exception as e:
+        return f"Error: failed to clear vector store - {e}"
+
+
 # Agent 工具列表
 ALL_TOOLS = [
     # 基础系统工具
@@ -162,4 +185,5 @@ ALL_TOOLS = [
     # 医学文献 RAG 工具
     medical_search,
     medical_index_rebuild,
+    medical_index_clear,
 ]
