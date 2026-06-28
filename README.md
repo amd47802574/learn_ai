@@ -1,10 +1,22 @@
-# CLI LLM Demo
+# CLI LLM Demo (LangChain)
 
-一个零依赖的 Python CLI 工具，用于调用 OpenAI 兼容的聊天补全 API，支持 MCP 工具集成。
+一个基于 **LangChain** 的 Python CLI 工具，用于调用 OpenAI 兼容的聊天补全 API，支持 Agent 工具调用。
+
+## 技术栈
+
+- **LangChain** — LLM 应用框架
+- **LangGraph** — ReAct Agent 构建
+- **langchain-openai** — OpenAI 兼容 API 接入（DeepSeek 等）
+
+## 安装
+
+```powershell
+pip install -r requirements.txt
+```
 
 ## 设置
 
-PowerShell（PowerShell 命令）：
+PowerShell：
 
 ```powershell
 $env:OPENAI_API_KEY="your_api_key"
@@ -17,7 +29,7 @@ $env:OPENAI_BASE_URL="https://api.openai.com/v1"
 $env:OPENAI_MODEL="gpt-4.1-mini"
 ```
 
-对于其他 OpenAI 兼容的提供商，请修改 `OPENAI_BASE_URL` 和 `OPENAI_MODEL`。
+默认使用 DeepSeek API（`https://api.deepseek.com/v1`，模型 `deepseek-v4-flash`）。
 
 ## 运行
 
@@ -41,39 +53,32 @@ python .\llm_cli.py --no-tools "用三句话解释什么是大模型"
 
 对话模式命令：
 
-- `/clear` 清空对话上下文。
-- `/exit` 退出。
+- `/clear` 清空对话上下文
+- `/exit` 退出
 
-## MCP 工具
+## 可用工具
 
-项目内置了 MCP (Model Context Protocol) 工具服务器，LLM 可以自动调用以下工具：
+Agent 可自动调用以下工具：
 
-- `read_file` - 读取文件内容
-- `list_directory` - 列出目录内容
-- `execute_command` - 执行系统命令
-- `get_current_time` - 获取当前时间
-- `calculate` - 计算数学表达式
+| 工具 | 说明 |
+|------|------|
+| `read_file` | 读取文件内容 |
+| `list_directory` | 列出目录内容 |
+| `execute_command` | 执行系统命令 |
+| `get_current_time` | 获取当前时间 |
+| `calculate` | 计算数学表达式 |
 
-工具会在 LLM 认为需要时自动调用，无需手动干预。
+工具定义在 `tools.py` 中，使用 LangChain 的 `@tool` 装饰器。
 
-## 示例对话
+## 项目结构
 
 ```
-You> 当前目录有哪些文件？
-
-[调用工具: list_directory({'path': '.'})]
-[工具结果: 📁 __pycache__/
-📄 .gitignore (123 bytes)
-📄 README.md (1.2 KB)
-📄 llm_cli.py (8.5 KB)
-📄 mcp_tools.py (6.2 KB)]
-
-AI> 当前目录包含以下文件：
-- __pycache__/ (Python 缓存目录)
-- .gitignore
-- README.md
-- llm_cli.py (主程序)
-- mcp_tools.py (MCP 工具服务器)
+learn_ai/
+├── llm_cli.py          # 主程序：LangChain Agent + CLI
+├── tools.py            # 工具定义（@tool 装饰器）
+├── test_tools.py       # 测试脚本
+├── requirements.txt    # Python 依赖
+└── README.md
 ```
 
 ## 命令行参数
@@ -91,6 +96,14 @@ python .\llm_cli.py [prompt] [options]
   --system SYSTEM       系统提示词
   --temperature TEMP    温度参数（默认: 0.7）
   --no-stream           禁用流式输出
-  --no-tools            禁用 MCP 工具
-  --mcp-server PATH     MCP 服务器脚本路径（默认: mcp_tools.py）
+  --no-tools            禁用工具调用
 ```
+
+## 架构说明
+
+本项目使用 LangChain + LangGraph 的 ReAct Agent 架构：
+
+1. **ChatOpenAI** — 通过 OpenAI 兼容接口调用 DeepSeek 等 LLM
+2. **@tool 装饰器** — 声明式工具定义，自动生成 JSON Schema
+3. **create_react_agent** — LangGraph 预构建的 ReAct Agent，自动处理工具调用循环
+4. **StreamingHandler** — 回调处理器，实现流式输出和工具调用日志
