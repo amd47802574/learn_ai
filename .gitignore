@@ -1,3 +1,6 @@
 .env
 __pycache__/
 *.pyc
+# 忽略chroma向量库
+chroma_db/
+*.sqlite3
